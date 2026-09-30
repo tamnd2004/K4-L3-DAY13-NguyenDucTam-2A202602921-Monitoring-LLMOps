@@ -7,6 +7,27 @@ primary_slo:
     total_event: 'event == "request_received"'
   target_percent: 99.5
   error_budget_percent: 0.5
+  # Giữ ngưỡng 3000 ms và target 99.5% sau khi đối chiếu baseline đo được (data/logs.jsonl):
+  baseline:
+    cp0_before_prompt_created: {p50_ms: 388, p95_ms: 779, p99_ms: 1029, max_ms: 1092}
+    after_prompt_cached: {p50_ms: 152, p95_cold_start_ms: 1128, ttft_p95_ms: 50}
+  rationale: >-
+    Chat assistant: người dùng chấp nhận chờ tối đa khoảng 3 giây. Baseline P95 là 779 ms và
+    request chậm nhất bình thường (cold start tải prompt từ Langfuse) khoảng 1.1 s, nên ngưỡng
+    3000 ms chừa ~2.7x headroom: cold start và jitter mạng không đốt budget, còn sự cố thật
+    (retrieval chậm thêm 2.5 s, lỗi vector store) sẽ làm request vượt ngưỡng hoặc thất bại.
+    Target 99.5% thay vì 99.9% vì app phụ thuộc hai dịch vụ ngoài (Langfuse, vector store)
+    và lab chạy trên một instance, không có retry/failover.
+  error_budget:
+    formula: 'allowed_bad_requests = floor(total_requests * (100 - target_percent) / 100)'
+    examples:
+      - {total_requests_28d: 10000, allowed_bad_requests: 50}
+      # Workload lab ~10 request/phút: 10 * 60 * 24 * 28 = 403200 request / 28 ngày.
+      - {total_requests_28d: 403200, allowed_bad_requests: 2016}
+    burn_rate_note: >-
+      Budget chia đều 28 ngày là ~72 request xấu/ngày (~3/giờ) ở workload 403200 request.
+      Một sự cố làm hỏng 100% traffic (10 request/phút) đốt ~3 giờ budget mỗi phút, nên alert
+      error rate phải phát sau 5 phút chứ không đợi hết ngày.
   note: Học viên phải giải thích hoặc điều chỉnh ngưỡng bằng baseline của mình. Ví dụ nếu có 10,000 request trong cửa sổ 28 ngày, error budget 0.5% nghĩa là tối đa 50 request được phép không đạt SLO.
 guardrails:
   error_rate_pct_max: 2

@@ -1,25 +1,42 @@
+# Ba alert symptom-based, tính trên data/logs.jsonl (cùng nguồn với dashboard).
+# Kênh chung: Slack #k4-l3b-alerts. Runbook chi tiết: docs/alerts.md.
 alerts:
-  - name: TODO_alert_1
-    severity: TODO
-    condition: TODO
-    duration: TODO
+  - name: LatencyP95High
+    severity: warning
+    condition: 'p95(latency_ms where event == "response_sent") > 2000 ms'
+    duration: 5m
     type: symptom-based
     channel: slack
-    owner: TODO
+    slack_channel: '#k4-l3b-alerts'
+    owner: student-2A202602921
+    slo: fast_successful_requests
+    # Cảnh báo sớm dưới ngưỡng SLO 3000 ms: baseline P95 <= 1.2 s (kể cả cold start),
+    # nên 2000 ms đã là bất thường; retrieval chậm thêm 2.5 s đưa request lên ~2.65 s,
+    # chưa vượt 3000 ms nhưng đã ảnh hưởng người dùng.
+    escalation: 'critical nếu p95 > 3000 ms (vượt SLO) trong 5m'
     runbook: docs/alerts.md#alert-1
-  - name: TODO_alert_2
-    severity: TODO
-    condition: TODO
-    duration: TODO
+
+  - name: ErrorRateOrRetrievalFailing
+    severity: critical
+    condition: 'error_rate_pct > 2 or tool_success_rate_pct < 90'
+    duration: 5m
     type: symptom-based
     channel: slack
-    owner: TODO
+    slack_channel: '#k4-l3b-alerts'
+    owner: student-2A202602921
+    slo: fast_successful_requests
+    # error_rate_pct = count(request_failed) / count(request_received) * 100
+    # tool_success_rate_pct = count(tool_success == true) / count(tool_success != null) * 100
     runbook: docs/alerts.md#alert-2
-  - name: TODO_alert_3
-    severity: TODO
-    condition: TODO
-    duration: TODO
+
+  - name: CostPerRequestSpike
+    severity: warning
+    condition: 'avg(cost_usd where event == "response_sent") > 0.005 USD/request'
+    duration: 10m
     type: symptom-based
     channel: slack
-    owner: TODO
+    slack_channel: '#k4-l3b-alerts'
+    owner: student-2A202602921
+    # Baseline ~0.0021 USD/request; 0.005 ≈ 2.4x baseline. Đo theo request thay vì tổng
+    # để không báo nhầm khi traffic tăng hợp lệ; guardrail tổng: daily_cost_usd_max 2.5.
     runbook: docs/alerts.md#alert-3
