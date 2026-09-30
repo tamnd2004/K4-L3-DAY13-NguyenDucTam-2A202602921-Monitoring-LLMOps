@@ -1,0 +1,7 @@
+# 01 — pytest trên commit cuối (2026-09-30 11:42 UTC+7)
+$ git log -1 --oneline
+800d08f docs: CP3 incident investigation and CP4 report with evidence 01-14
+$ python -m pytest -q
+# PYTEST_DEBUG_TEMPROOT trỏ sang thư mục temp khác vì <temp>/pytest-of-<user> trên máy bị khoá quyền (WinError 5), xem REPORT mục 8.
+......................................                                   [100%]
+38 passed in 3.77s

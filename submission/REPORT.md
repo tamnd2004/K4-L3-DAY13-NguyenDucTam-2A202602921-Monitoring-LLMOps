@@ -8,7 +8,7 @@
 - **MSSV:** 2A202602921
 - **Lớp:** K4-L3B
 - **Repository URL:** https://github.com/tamnd2004/K4-L3-DAY13-NguyenDucTam-2A202602921-Monitoring-LLMOps
-- **Commit SHA cuối:** COMMIT_SHA_PLACEHOLDER
+- **Commit SHA cuối:** `800d08f2d4688e4fbf2b8de17c7def4ac454144d` (commit chứa code, report và evidence 02–14; commit ngay sau chỉ thêm `evidence/01-pytest.txt` chạy trên commit này và điền SHA vào đây)
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602921`
 
