@@ -1,0 +1,35 @@
+# CP0 baseline — chạy lúc 2026-09-30 09:44 (UTC+7), API: uvicorn app.main:app --reload --env-file .env
+# GET /health -> {"ok":true,"tracing_enabled":true,"incidents":{"rag_slow":false,"tool_fail":false,"cost_spike":false}}
+
+$ python scripts/validate_logs.py
+--- Lab Verification Results ---
+Total log records analyzed: 20
+Records with missing required fields: 20
+Records with missing enrichment (context): 20
+Unique correlation IDs found: 0
+Potential PII leaks detected: 0
+
+--- Grading Scorecard (Estimates) ---
+- [FAILED] Missing required fields (ts, level, etc.)
+- [FAILED] Correlation ID propagation (less than 2 unique IDs)
+- [FAILED] Log enrichment (missing user_id_hash, etc.)
++ [PASSED] PII scrubbing
+
+Estimated Score: 30/100
+
+$ python scripts/validate_dashboard.py
+HỢP LỆ: 6/6 panel có trong dashboard contract.
+
+$ python -m pytest -q
+=========================== short test summary info ===========================
+ERROR tests/test_chat_observability.py::test_chat_response_log_exposes_quality_for_dashboard
+ERROR tests/test_dashboard_validator.py::test_validator_rejects_panel_without_threshold
+ERROR tests/test_dashboard_validator.py::test_validator_rejects_panel_without_query_example
+ERROR tests/test_validate_logs.py::test_validator_detects_raw_vietnamese_phone
+18 passed, 4 errors in 3.36s
+
+# 4 ERROR ở trên không do code: thư mục temp C:\Users\<user>\AppData\Local\Temp\pytest-of-<user> bị khoá quyền (WinError 5).
+# Chạy lại với temp root ghi được (PYTEST_DEBUG_TEMPROOT=<thư mục khác>):
+$ python -m pytest -q
+......................                                                   [100%]
+22 passed in 2.75s

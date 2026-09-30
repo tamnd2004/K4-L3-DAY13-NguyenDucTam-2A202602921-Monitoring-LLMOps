@@ -4,13 +4,13 @@
 
 ## 1. Thông tin học viên
 
-- **Họ và tên:**
-- **MSSV:**
+- **Họ và tên:** Nguyễn Đức Tâm
+- **MSSV:** 2A202602921
 - **Lớp:** K4-L3B
 - **Repository URL:**
 - **Commit SHA cuối:**
 - **Challenge ID:**
-- **Tên project Langfuse cá nhân:** `day13-k4-l3b-<MSSV>`
+- **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602921`
 
 ## 2. Evidence index
 
@@ -29,22 +29,28 @@ Giữ đúng ba output text và năm ảnh dưới đây. Không tách thêm ả
 
 ## 3. Kết quả kỹ thuật
 
-| Nội dung | Baseline | Kết quả cuối | Nhận xét |
-|---|---|---|---|
-| `validate_logs.py` | | | |
-| `validate_dashboard.py` | | | |
-| `pytest` | | | |
-| Số traces hợp lệ | | | |
-| Số PII leak | | | |
-| Latency P95 / TTFT P95 | | | |
-| Retrieval success rate | | | |
+Baseline (CP0) chạy lúc 2026-09-30 09:44 (UTC+7) với 10 request của `scripts/load_test.py`, API chạy bằng `--env-file .env` (`/health`: `ok: true`, `tracing_enabled: true`). Output đầy đủ: [`evidence/00-baseline.txt`](evidence/00-baseline.txt).
+
+| Nội dung                | Baseline                                   | Kết quả cuối | Nhận xét |
+| ----------------------- | ------------------------------------------ | ------------ | -------- |
+| `validate_logs.py`      | 30/100                                     |              | Baseline: 20/20 record thiếu `correlation_id` và enrichment (`user_id_hash`, `session_id`, `feature`, `model`); 0 correlation ID duy nhất. |
+| `validate_dashboard.py` | HỢP LỆ 6/6 panel                           |              | Contract `config/dashboard.yaml` của starter đã đủ 6 panel. |
+| `pytest`                | 22 passed                                  |              | Lần chạy mặc định: 18 passed, 4 errors do thư mục temp của pytest bị khoá quyền (WinError 5), không phải lỗi code; đổi temp root thì 22/22 pass. |
+| Số traces hợp lệ        | 10 traces, chỉ có root `lab-agent-run`     |              | Chưa có child retrieval/generation; metadata `correlation_id=MISSING`. |
+| Số PII leak             | 0                                          |              | `summarize_text` đã che preview, nhưng processor `scrub_event` chưa được đăng ký trong pipeline log. |
+| Latency P95 / TTFT P95  | 779 ms / 51 ms                             |              | P50 = 388 ms; P95 bị kéo lên bởi request đầu tiên (1092 ms, cold start khi lấy prompt), 9 request còn lại 377–396 ms. |
+| Retrieval success rate  | 100% (10/10)                               |              | Chưa bật incident. |
 
 ## 4. Logging và PII
 
-- **Cách tạo/nhận và truyền correlation ID:**
-- **Các metadata được ghi vào structured log:**
-- **Cách bảo đảm PII được scrub trước khi ghi:**
+- **Cách tạo/nhận và truyền correlation ID:** [`app/middleware.py`](../app/middleware.py) chạy đầu mỗi request: gọi `clear_contextvars()` để xoá context cũ, sau đó nhận header `x-request-id` nếu đúng format `req-<8-hex>` (so khớp regex, không phân biệt hoa thường). Header rỗng hoặc sai format (ví dụ `a@b.vn`, `req-XYZ`) bị bỏ và sinh ID mới `req-` + 8 ký tự đầu của `uuid4().hex`, vì header là input không tin cậy và có thể mang PII hoặc làm giả dòng log. ID được `bind_contextvars(correlation_id=...)` và gán vào `request.state.correlation_id` để agent đưa vào metadata của trace Langfuse. Response trả lại `x-request-id` và `x-response-time-ms`; body `/chat` cũng có `correlation_id`.
+- **Các metadata được ghi vào structured log:** [`app/main.py`](../app/main.py) bind một lần trước dòng `request_received`: `user_id_hash` (SHA-256 cắt 12 ký tự, không ghi `user_id` gốc), `session_id`, `feature`, `model`, `env`. Nhờ context này, mọi log của request (`request_received`, `response_sent`, `request_failed`) đều có cùng bộ field cùng với `ts`, `level`, `service`, `event`, `correlation_id`. `response_sent` có thêm `latency_ms`, `ttft_ms`, `tokens_in/out`, `cost_usd`, `quality_score`, `tool_name`, `tool_success`.
+- **Cách bảo đảm PII được scrub trước khi ghi:** [`app/logging_config.py`](../app/logging_config.py) đăng ký `scrub_event` sau `format_exc_info` và trước `JsonlFileProcessor`/`JSONRenderer`, nên traceback đã được render thành chuỗi cũng bị scrub và không có đường nào ghi PII thô xuống file hay stdout. `scrub_event` duyệt đệ quy mọi chuỗi, kể cả `payload` lồng nhau và list, trừ các field do hệ thống sinh (`ts`, `level`, `correlation_id`, `user_id_hash`); `user_id_hash` là hex nên có thể trùng pattern CCCD 12 số. [`app/pii.py`](../app/pii.py) che email, điện thoại VN, CCCD, thẻ và thêm hộ chiếu VN (`[A-Z]` + 7 số). Thứ tự pattern giữ CCCD trước thẻ, vì pattern thẻ cho phép bỏ dấu cách nên nếu chạy trước sẽ ghép `001099012345 4111` thành một "số thẻ" và để lộ phần còn lại.
 - **Cách kiểm chứng kết quả:**
+  - Test mới trong [`tests/test_pii.py`](../tests/test_pii.py) (CCCD, 3 format thẻ, hộ chiếu, số thường không bị che, câu ghép 4 loại PII) và [`tests/test_correlation_logging.py`](../tests/test_correlation_logging.py) (header được giữ, ID sai format bị thay, mỗi request có ID riêng, log thật không còn PII, scrub payload lồng nhau và traceback). `pytest`: 31 passed.
+  - Chuyển log baseline ra ngoài repo, restart API, chạy `load_test.py` thì `validate_logs.py` đạt **100/100**: 47 record, 0 thiếu field, 0 thiếu enrichment, 23 correlation ID duy nhất, 0 PII leak ([`evidence/02-log-validator.png`](evidence/02-log-validator.png)).
+  - Request mẫu `req-04c0de01` trả header `x-request-id: req-04c0de01`, `x-response-time-ms: 1075.4`; hai dòng log `request_received` và `response_sent` có đủ field ([`evidence/04-structured-log.png`](evidence/04-structured-log.png)). Trace Langfuse `a8439b278aa9dc177321d4c43f6131fc` có metadata `correlation_id=req-04c0de01`.
+  - Request `req-05c0de01` gửi `a@b.vn 0901234567 001099012345 4111 1111 1111 1111` (PII giả); log ghi `[REDACTED_EMAIL] [REDACTED_PHONE_VN] [REDACTED_CCCD] [REDACTED_CREDIT_CARD]` ([`evidence/05-pii-redaction.png`](evidence/05-pii-redaction.png)). Trace tương ứng: `1cd1a427df7d262d510afe4b9b795aa3`.
 
 ## 5. Tracing và prompt versioning
 
